@@ -40,9 +40,12 @@ export interface TimeSheetRef {
 interface TimeSheetProps {
   value: string; // '' or 'HH:MM'
   onSelectTime: (time: string) => void;
+  // Forwarded to the BottomSheetModal so callers rendering multiple TimeSheet
+  // instances (e.g. bedtime vs. wake time) can distinguish them in tests.
+  testID?: string;
 }
 
-const TimeSheet = forwardRef<TimeSheetRef, TimeSheetProps>(({ value, onSelectTime }, ref) => {
+const TimeSheet = forwardRef<TimeSheetRef, TimeSheetProps>(({ value, onSelectTime, testID }, ref) => {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
 
   const [surfaceBg, textMuted, accentPrimary, textPrimary, borderSubtle] = useCSSVariable([
@@ -106,7 +109,7 @@ const TimeSheet = forwardRef<TimeSheetRef, TimeSheetProps>(({ value, onSelectTim
       backgroundStyle={{ backgroundColor: surfaceBg }}
       handleIndicatorStyle={{ backgroundColor: textMuted }}
     >
-      <BottomSheetView className="pb-safe-or-5 px-2">
+      <BottomSheetView testID={testID} className="pb-safe-or-5 px-2">
         <DateTimePicker
           mode="single"
           date={timeStringToDate(displayed || value)}
