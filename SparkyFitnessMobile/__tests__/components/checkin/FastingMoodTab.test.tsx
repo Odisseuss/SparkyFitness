@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react-nativ
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FastingMoodTab from '../../../src/components/checkin/FastingMoodTab';
 import { fetchMoodForDate, saveMood } from '../../../src/services/api/moodApi';
+import { moodQueryKey } from '../../../src/hooks/queryKeys';
 
 jest.mock('../../../src/services/api/moodApi');
 jest.mock('../../../src/components/FastingCard', () => {
@@ -14,13 +15,17 @@ jest.mock('../../../src/components/FastingCard', () => {
 const mockFetchMoodForDate = fetchMoodForDate as jest.MockedFunction<typeof fetchMoodForDate>;
 const mockSaveMood = saveMood as jest.MockedFunction<typeof saveMood>;
 
-function renderTab() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderTabWithClient(queryClient: QueryClient) {
   return render(
     <QueryClientProvider client={queryClient}>
       <FastingMoodTab selectedDate="2026-08-24" navigation={{} as never} />
     </QueryClientProvider>,
   );
+}
+
+function renderTab() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderTabWithClient(queryClient);
 }
 
 describe('FastingMoodTab', () => {
@@ -95,5 +100,29 @@ describe('FastingMoodTab', () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue('Great workout')).toBeTruthy();
     });
+  });
+
+  test('shows the cached entry immediately when the mood query is already cached on mount, instead of the hardcoded defaults', async () => {
+    // Simulate a date the user already viewed earlier in this session: the
+    // query result is already in the cache before the component ever mounts,
+    // so useMoodForDate resolves synchronously with isLoading: false on the
+    // very first render (default staleTime is Infinity, per AGENTS.md).
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(moodQueryKey('2026-08-24'), {
+      id: 'm1',
+      mood_value: 80,
+      mood_tags: ['happy'],
+      notes: 'Great workout',
+      entry_date: '2026-08-24',
+    });
+
+    renderTabWithClient(queryClient);
+
+    // The cached entry's values must be visible immediately -- no loading
+    // spinner should ever appear, and the hardcoded defaults (mood 50, no
+    // tags, empty notes) must never be shown even transiently.
+    expect(screen.getByDisplayValue('Great workout')).toBeTruthy();
+    expect(screen.getByDisplayValue('80')).toBeTruthy();
+    expect(screen.queryByDisplayValue('50')).toBeNull();
   });
 });

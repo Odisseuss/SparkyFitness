@@ -32,9 +32,17 @@ const FastingMoodTab: React.FC<FastingMoodTabProps> = ({ selectedDate, navigatio
   const { data: existingMood, isLoading } = useMoodForDate(selectedDate);
   const saveMoodMutation = useSaveMoodMutation();
 
-  const [mood, setMood] = useState(DEFAULT_MOOD);
-  const [moodTags, setMoodTags] = useState<string[]>([]);
-  const [notes, setNotes] = useState('');
+  // Lazily seeded from whatever `existingMood` already resolved to on this
+  // first render (e.g. a cached TanStack Query result — the default
+  // `staleTime` here is Infinity, so revisiting a previously-viewed date
+  // serves cached data synchronously with `isLoading: false` on mount).
+  // Seeding from hardcoded defaults instead would disagree with
+  // `prevExistingMood`'s initial value below and silently hide the user's
+  // real saved entry behind the defaults with no loading spinner to hint at
+  // it. Mirrors the `measurementsSnapshot` seeding in MeasurementsTab.tsx.
+  const [mood, setMood] = useState(() => (existingMood ? existingMood.mood_value : DEFAULT_MOOD));
+  const [moodTags, setMoodTags] = useState<string[]>(() => (existingMood ? existingMood.mood_tags : []));
+  const [notes, setNotes] = useState(() => (existingMood ? existingMood.notes : ''));
 
   // Re-seed the form whenever the loaded entry for this date changes (date
   // switch, or the query settling after a save). A dirty-tracking guard is
