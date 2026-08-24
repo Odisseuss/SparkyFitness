@@ -4,76 +4,45 @@ import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { pressAction } from './helpers/nativeHeaderTestUtils';
-import MeasurementsAddScreen from '../../src/screens/MeasurementsAddScreen';
-import { useMeasurements } from '../../src/hooks/useMeasurements';
-import { usePreferences } from '../../src/hooks/usePreferences';
-import { useUpsertCheckIn } from '../../src/hooks/useUpsertCheckIn';
+import MeasurementsTab from '../../../src/components/checkin/MeasurementsTab';
+import { useMeasurements } from '../../../src/hooks/useMeasurements';
+import { usePreferences } from '../../../src/hooks/usePreferences';
+import { useUpsertCheckIn } from '../../../src/hooks/useUpsertCheckIn';
 import {
   useCustomCategories,
   useCustomMeasurementsByDate,
   useSaveCustomMeasurement,
   useDeleteCustomMeasurement,
-} from '../../src/hooks/useCustomMeasurements';
-import { SAVE_LABEL } from '../../src/hooks/useScreenHeader';
-import type { CheckInMeasurement } from '../../src/types/measurements';
-import type { CustomCategory, CustomMeasurementEntry } from '../../src/types/customMeasurements';
-import type { RootStackScreenProps } from '../../src/types/navigation';
+} from '../../../src/hooks/useCustomMeasurements';
+import type { CheckInMeasurement } from '../../../src/types/measurements';
+import type { CustomCategory, CustomMeasurementEntry } from '../../../src/types/customMeasurements';
 
-type ScreenProps = RootStackScreenProps<'MeasurementsAdd'>;
-
-jest.mock('../../src/hooks/useMeasurements', () => ({
+jest.mock('../../../src/hooks/useMeasurements', () => ({
   useMeasurements: jest.fn(),
 }));
 
-jest.mock('../../src/hooks/usePreferences', () => ({
+jest.mock('../../../src/hooks/usePreferences', () => ({
   usePreferences: jest.fn(),
 }));
 
-jest.mock('../../src/hooks/useUpsertCheckIn', () => ({
+jest.mock('../../../src/hooks/useUpsertCheckIn', () => ({
   useUpsertCheckIn: jest.fn(),
 }));
 
-jest.mock('../../src/hooks/useCustomMeasurements', () => ({
+jest.mock('../../../src/hooks/useCustomMeasurements', () => ({
   useCustomCategories: jest.fn(),
   useCustomMeasurementsByDate: jest.fn(),
   useSaveCustomMeasurement: jest.fn(),
   useDeleteCustomMeasurement: jest.fn(),
 }));
 
-jest.mock('../../src/components/Icon', () => {
+jest.mock('../../../src/components/Icon', () => {
   const { View } = require('react-native');
   return {
     __esModule: true,
     default: ({ name }: { name: string }) => <View testID={`icon-${name}`} />,
   };
 });
-
-jest.mock('../../src/components/CalendarSheet', () => {
-  const ReactModule = require('react');
-  const { View } = require('react-native');
-  return {
-    __esModule: true,
-    default: ReactModule.forwardRef((_props: unknown, ref: React.Ref<unknown>) => {
-      ReactModule.useImperativeHandle(ref, () => ({
-        present: jest.fn(),
-        dismiss: jest.fn(),
-      }));
-      return <View testID="calendar-sheet" />;
-    }),
-  };
-});
-
-const mockNavigation = {
-  setOptions: jest.fn(),
-  goBack: jest.fn(),
-  navigate: jest.fn(),
-  dispatch: jest.fn(),
-} as unknown as ScreenProps['navigation'];
-jest.mock('@react-navigation/native', () => ({
-  ...jest.requireActual('@react-navigation/native'),
-  useNavigation: () => mockNavigation,
-}));
 
 const mockUseMeasurements = useMeasurements as jest.MockedFunction<typeof useMeasurements>;
 const mockUsePreferences = usePreferences as jest.MockedFunction<typeof usePreferences>;
@@ -96,7 +65,7 @@ const ENTRY_DATE = '2024-06-15';
 type UpsertVars = Parameters<ReturnType<typeof useUpsertCheckIn>['mutate']>[0];
 
 const mutate = jest.fn();
-// The screen saves through upsertMutation.mutateAsync; the mock must expose it
+// The tab saves through upsertMutation.mutateAsync; the mock must expose it
 // for the save path to resolve (React Query exposes both mutate and mutateAsync).
 const mutateAsync = jest.fn().mockResolvedValue(undefined);
 
@@ -158,19 +127,33 @@ const customEntry = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+// Captures the save function most recently registered by the tab, so tests
+// can trigger a save without any header/footer UI (that chrome now lives in
+// the parent Check-In screen, not this component).
+const registerSaveHandler = jest.fn();
+const onStateChange = jest.fn();
+
+const getRegisteredSave = (): (() => void) => {
+  const lastFn = registerSaveHandler.mock.calls
+    .map((call) => call[0])
+    .filter((fn): fn is () => void => typeof fn === 'function')
+    .at(-1);
+  if (!lastFn) throw new Error('registerSaveHandler was never called with a function');
+  return lastFn;
+};
+
 const renderScreen = () => {
-  const route: ScreenProps['route'] = {
-    key: 'MeasurementsAdd-key',
-    name: 'MeasurementsAdd',
-    params: { date: ENTRY_DATE },
-  };
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider initialMetrics={{ insets, frame }}>
-        <MeasurementsAddScreen navigation={mockNavigation} route={route} />
+        <MeasurementsTab
+          selectedDate={ENTRY_DATE}
+          registerSaveHandler={registerSaveHandler}
+          onStateChange={onStateChange}
+        />
       </SafeAreaProvider>
     </QueryClientProvider>,
   );
@@ -193,11 +176,13 @@ type Screen = ReturnType<typeof renderScreen>;
 const getInput = (screen: Screen, field: keyof typeof FIELD_INDEX) =>
   screen.getAllByPlaceholderText('0')[FIELD_INDEX[field]];
 
-const pressSave = async (screen: Screen) => {
-  pressAction(screen, mockNavigation, SAVE_LABEL);
-  // The merged screen saves through upsertMutation.mutateAsync, so flush the
-  // awaited continuation inside act before asserting or re-rendering.
-  await act(async () => {});
+const pressSave = async (_screen: Screen) => {
+  const save = getRegisteredSave();
+  await act(async () => {
+    save();
+    // Flush the awaited mutateAsync continuation inside act.
+    await Promise.resolve();
+  });
 };
 
 const savedPayload = (): UpsertVars => {
@@ -218,7 +203,7 @@ const confirmClearAlert = async () => {
   });
 };
 
-describe('MeasurementsAddScreen — omitted vs null save semantics', () => {
+describe('MeasurementsTab — omitted vs null save semantics', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
@@ -349,14 +334,38 @@ describe('MeasurementsAddScreen — omitted vs null save semantics', () => {
     expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
   });
 
-  test('a successful save shows a toast and closes the screen', async () => {
+  test('a successful save shows a toast and stays on the tab (no dismiss)', async () => {
     const screen = renderScreen();
 
     fireEvent.changeText(getInput(screen, 'weight'), '82.5');
     await pressSave(screen);
 
     expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
-    expect(mockNavigation.goBack).toHaveBeenCalled();
+    // Measurements save no longer navigates away — the Check-In screen stays
+    // mounted since it now also hosts Fasting & Mood, Sleep, and Photos.
+    expect(screen.toJSON()).not.toBeNull();
+  });
+
+  test('registerSaveHandler is called with a function on mount and null on unmount', () => {
+    const screen = renderScreen();
+
+    expect(registerSaveHandler).toHaveBeenCalledWith(expect.any(Function));
+    registerSaveHandler.mockClear();
+    screen.unmount();
+    expect(registerSaveHandler).toHaveBeenLastCalledWith(null);
+  });
+
+  test('onStateChange reflects isSaving while the mutation is pending', () => {
+    mockUseUpsertCheckIn.mockReturnValue({
+      mutate,
+      mutateAsync,
+      isPending: true,
+    } as unknown as ReturnType<typeof useUpsertCheckIn>);
+    renderScreen();
+
+    expect(onStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({ isSaving: true, isSaveDisabled: true }),
+    );
   });
 
   describe('unit conversion to metric storage', () => {
@@ -442,7 +451,7 @@ describe('MeasurementsAddScreen — omitted vs null save semantics', () => {
   });
 });
 
-describe('MeasurementsAddScreen — custom measurements', () => {
+describe('MeasurementsTab — custom measurements', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
@@ -678,7 +687,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     expect(screen.getByText('Try again')).toBeTruthy();
   });
 
-  test('partial custom save failure shows an error and does not close the screen', async () => {
+  test('partial custom save failure shows an error and does not clear the form', async () => {
     setCustomCategories([customCategory({ id: 'c1' })]);
     const screen = renderScreen();
 
@@ -691,7 +700,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     await pressSave(screen);
 
     expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
-    expect(mockNavigation.goBack).not.toHaveBeenCalled();
+    expect(screen.getByTestId('custom-input-c1').props.value).toBe('10');
   });
 
   test('partial custom failure keeps unsaved rows pending and retry skips succeeded rows', async () => {
@@ -716,7 +725,6 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     await pressSave(screen);
 
     expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
-    expect(mockNavigation.goBack).not.toHaveBeenCalled();
     // Only c1 and c2 were attempted on the first pass.
     expect(saveMock.mutateAsync).toHaveBeenCalledTimes(2);
 
@@ -731,7 +739,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     expect(calls.filter((p) => p.category_id === 'c1')).toHaveLength(1);
     expect(calls.filter((p) => p.category_id === 'c2')).toHaveLength(2);
     expect(calls.filter((p) => p.category_id === 'c3')).toHaveLength(1);
-    expect(mockNavigation.goBack).toHaveBeenCalled();
+    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
   });
 
   test('standard fields survive a custom partial failure', async () => {
@@ -778,7 +786,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     deleteMock.mutateAsync.mockResolvedValueOnce(undefined);
     saveMock.mutateAsync.mockRejectedValueOnce(new Error('boom'));
     await pressSave(screen);
-    await confirmClearAlert(screen);
+    await confirmClearAlert();
 
     expect(deleteMock.mutateAsync).toHaveBeenCalledTimes(1);
 
@@ -789,7 +797,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
 
     expect(deleteMock.mutateAsync).toHaveBeenCalledTimes(1);
     expect(saveMock.mutateAsync).toHaveBeenCalledTimes(2);
-    expect(mockNavigation.goBack).toHaveBeenCalled();
+    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
   });
 
   test('retry after refetch keeps dirty values and submits only remaining work', async () => {
@@ -811,7 +819,7 @@ describe('MeasurementsAddScreen — custom measurements', () => {
     await pressSave(screen);
 
     expect(saveMock.mutateAsync).toHaveBeenCalledTimes(2);
-    expect(mockNavigation.goBack).toHaveBeenCalled();
+    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
   });
 
   test('custom endpoint failure does not block saving standard fields', async () => {
