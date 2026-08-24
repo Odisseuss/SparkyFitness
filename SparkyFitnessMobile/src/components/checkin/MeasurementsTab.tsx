@@ -152,12 +152,85 @@ const MeasurementsTab: React.FC<MeasurementsTabProps> = ({
     '--color-text-secondary',
   ]) as [string, string];
 
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [prefilledKeys, setPrefilledKeys] = useState<Set<FieldKey>>(() => new Set());
-  // Once the user starts editing we stop syncing the form from refetched
-  // measurements for that field, so a background refresh can't clobber their input.
-  const dirtyFieldsRef = useRef<Set<FieldKey>>(new Set());
-  const lastDateRef = useRef<string | null>(null);
+  const { measurements, isLoading, refetch: refetchMeasurements } = useMeasurements({ date: selectedDate });
+  const { preferences, isLoading: isPreferencesLoading } = usePreferences();
+  // Weight supports a third "stones + lbs" mode that renders as two inputs.
+  const weightMode: 'kg' | 'lbs' | 'st_lbs' = preferences?.default_weight_unit ?? 'kg';
+  // Body measurements (waist/neck/hips) only support cm/inches — when the
+  // pref is ft_in we fall back to cm, matching web's `formatMeasurement`.
+  const bodyUnit: 'cm' | 'inches' =
+    preferences?.default_measurement_unit === 'inches' ? 'inches' : 'cm';
+  // Height supports a third "feet + inches" mode that renders as two inputs.
+  const heightMode: 'cm' | 'inches' | 'ft_in' =
+    preferences?.default_measurement_unit ?? 'cm';
+
+  // Pure snapshot of "what the form would look like from a fresh read of the
+  // measurements query" — independent of anything the user has typed.
+  // Recomputed every render (cheap); committing it into `form` below is
+  // conditional on it actually changing.
+  const measurementsSnapshot = useMemo((): { form: FormState; prefilled: Set<FieldKey> } => {
+    if (isLoading || isPreferencesLoading) {
+      return { form: EMPTY_FORM, prefilled: new Set<FieldKey>() };
+    }
+    const next: FormState = { ...EMPTY_FORM };
+    const prefilled = new Set<FieldKey>();
+    if (measurements) {
+      if (measurements.weight != null) {
+        if (weightMode === 'st_lbs') {
+          const { stones, lbs } = kgToStonesLbs(measurements.weight);
+          next.weightStones = String(stones);
+          next.weight = formatNumberForInput(lbs);
+        } else {
+          next.weight = formatNumberForInput(weightFromKg(measurements.weight, weightMode));
+        }
+        prefilled.add('weight');
+      }
+      if (measurements.neck != null) {
+        next.neck = formatNumberForInput(lengthFromCm(measurements.neck, bodyUnit));
+        prefilled.add('neck');
+      }
+      if (measurements.waist != null) {
+        next.waist = formatNumberForInput(lengthFromCm(measurements.waist, bodyUnit));
+        prefilled.add('waist');
+      }
+      if (measurements.hips != null) {
+        next.hips = formatNumberForInput(lengthFromCm(measurements.hips, bodyUnit));
+        prefilled.add('hips');
+      }
+      if (measurements.height != null) {
+        if (heightMode === 'ft_in') {
+          const { feet, inches } = cmToFeetInches(measurements.height);
+          next.heightFeet = String(feet);
+          next.height = formatNumberForInput(inches);
+        } else {
+          next.height = formatNumberForInput(lengthFromCm(measurements.height, heightMode));
+        }
+        prefilled.add('height');
+      }
+      if (measurements.steps != null) {
+        next.steps = String(measurements.steps);
+        prefilled.add('steps');
+      }
+      if (measurements.body_fat_percentage != null) {
+        next.bodyFatPercentage = formatNumberForInput(measurements.body_fat_percentage);
+        prefilled.add('bodyFatPercentage');
+      }
+    }
+    return { form: next, prefilled };
+  }, [isLoading, isPreferencesLoading, measurements, weightMode, bodyUnit, heightMode]);
+
+  const [form, setForm] = useState<FormState>(() => measurementsSnapshot.form);
+  const [prefilledKeys, setPrefilledKeys] = useState<Set<FieldKey>>(() => measurementsSnapshot.prefilled);
+  // Once the user starts editing we stop syncing that field from refetched
+  // measurements, so a background refresh can't clobber their input. This is
+  // state (not a ref) so the render-time reconciliation below — which needs
+  // this render's up-to-date value, not the previous commit's — can read it
+  // without violating the rule against reading refs during render.
+  const [dirtyFields, setDirtyFields] = useState<Set<FieldKey>>(() => new Set());
+  // Tracks the previous selectedDate/snapshot purely to detect changes; see
+  // the render-time reconciliation block below.
+  const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
+  const [prevMeasurementsSnapshot, setPrevMeasurementsSnapshot] = useState(measurementsSnapshot);
 
   const [customForm, setCustomForm] = useState<CustomFormState>({});
   const customFormRef = useRef<CustomFormState>({});
@@ -171,17 +244,43 @@ const MeasurementsTab: React.FC<MeasurementsTabProps> = ({
   const dirtyCustomKeysRef = useRef<Set<string>>(new Set());
   const lastCustomDateRef = useRef<string | null>(null);
 
-  const { measurements, isLoading, refetch: refetchMeasurements } = useMeasurements({ date: selectedDate });
-  const { preferences, isLoading: isPreferencesLoading } = usePreferences();
-  // Weight supports a third "stones + lbs" mode that renders as two inputs.
-  const weightMode: 'kg' | 'lbs' | 'st_lbs' = preferences?.default_weight_unit ?? 'kg';
-  // Body measurements (waist/neck/hips) only support cm/inches — when the
-  // pref is ft_in we fall back to cm, matching web's `formatMeasurement`.
-  const bodyUnit: 'cm' | 'inches' =
-    preferences?.default_measurement_unit === 'inches' ? 'inches' : 'cm';
-  // Height supports a third "feet + inches" mode that renders as two inputs.
-  const heightMode: 'cm' | 'inches' | 'ft_in' =
-    preferences?.default_measurement_unit ?? 'cm';
+  // Re-seed the form whenever the selected date changes or the measurements
+  // snapshot changes (background refetch, save settling, preferences
+  // loading). This mirrors React's "adjusting state when a prop changes"
+  // pattern: the sync happens directly during render, in the same commit as
+  // the data change, rather than in a follow-up effect — which also lets it
+  // safely read `dirtyFields` for this render instead of the previous one.
+  const dateChanged = selectedDate !== prevSelectedDate;
+  const snapshotChanged = measurementsSnapshot !== prevMeasurementsSnapshot;
+  if (dateChanged) {
+    setPrevSelectedDate(selectedDate);
+  }
+  if (snapshotChanged) {
+    setPrevMeasurementsSnapshot(measurementsSnapshot);
+  }
+  let effectiveDirtyFields = dirtyFields;
+  if (dateChanged) {
+    effectiveDirtyFields = new Set<FieldKey>();
+    setDirtyFields(effectiveDirtyFields);
+  }
+  if (dateChanged || snapshotChanged) {
+    if (isLoading || isPreferencesLoading || effectiveDirtyFields.size === 0) {
+      setForm(measurementsSnapshot.form);
+    } else {
+      const dirtyForMerge = effectiveDirtyFields;
+      setForm((current) => {
+        const merged = { ...current };
+        for (const key of Object.keys(FIELD_FORM_KEYS) as FieldKey[]) {
+          if (dirtyForMerge.has(key)) continue;
+          for (const formKey of FIELD_FORM_KEYS[key]) {
+            merged[formKey] = measurementsSnapshot.form[formKey];
+          }
+        }
+        return merged;
+      });
+    }
+    setPrefilledKeys(measurementsSnapshot.prefilled);
+  }
 
   const upsertMutation = useUpsertCheckIn({ showErrorToast: false });
   const saveCustomMutation = useSaveCustomMeasurement();
@@ -256,84 +355,6 @@ const MeasurementsTab: React.FC<MeasurementsTabProps> = ({
   // form value; collapsing keeps typed values in customForm).
   const [showMoreCategories, setShowMoreCategories] = useState(false);
 
-  // Sync the form to the latest measurements snapshot. Re-runs on every
-  // measurements change (including background refetches) so cached-then-fresh
-  // updates land in the form, but bails out once the user has touched it.
-  useEffect(() => {
-    if (lastDateRef.current !== selectedDate) {
-      lastDateRef.current = selectedDate;
-      dirtyFieldsRef.current = new Set();
-    }
-
-    const dirtyFields = new Set(dirtyFieldsRef.current);
-
-    if (isLoading || isPreferencesLoading) {
-      // Syncs the form to the latest measurements snapshot (cached-then-fresh)
-      // with dirty-field tracking; a legitimate external-data sync effect.
-      setForm(EMPTY_FORM);
-      setPrefilledKeys(new Set());
-      return;
-    }
-
-    const next: FormState = { ...EMPTY_FORM };
-    const prefilled = new Set<FieldKey>();
-    if (measurements) {
-      if (measurements.weight != null) {
-        if (weightMode === 'st_lbs') {
-          const { stones, lbs } = kgToStonesLbs(measurements.weight);
-          next.weightStones = String(stones);
-          next.weight = formatNumberForInput(lbs);
-        } else {
-          next.weight = formatNumberForInput(weightFromKg(measurements.weight, weightMode));
-        }
-        prefilled.add('weight');
-      }
-      if (measurements.neck != null) {
-        next.neck = formatNumberForInput(lengthFromCm(measurements.neck, bodyUnit));
-        prefilled.add('neck');
-      }
-      if (measurements.waist != null) {
-        next.waist = formatNumberForInput(lengthFromCm(measurements.waist, bodyUnit));
-        prefilled.add('waist');
-      }
-      if (measurements.hips != null) {
-        next.hips = formatNumberForInput(lengthFromCm(measurements.hips, bodyUnit));
-        prefilled.add('hips');
-      }
-      if (measurements.height != null) {
-        if (heightMode === 'ft_in') {
-          const { feet, inches } = cmToFeetInches(measurements.height);
-          next.heightFeet = String(feet);
-          next.height = formatNumberForInput(inches);
-        } else {
-          next.height = formatNumberForInput(lengthFromCm(measurements.height, heightMode));
-        }
-        prefilled.add('height');
-      }
-      if (measurements.steps != null) {
-        next.steps = String(measurements.steps);
-        prefilled.add('steps');
-      }
-      if (measurements.body_fat_percentage != null) {
-        next.bodyFatPercentage = formatNumberForInput(measurements.body_fat_percentage);
-        prefilled.add('bodyFatPercentage');
-      }
-    }
-    setForm((current) => {
-      if (dirtyFields.size === 0) return next;
-
-      const merged = { ...current };
-      for (const key of Object.keys(FIELD_FORM_KEYS) as FieldKey[]) {
-        if (dirtyFields.has(key)) continue;
-        for (const formKey of FIELD_FORM_KEYS[key]) {
-          merged[formKey] = next[formKey];
-        }
-      }
-      return merged;
-    });
-    setPrefilledKeys(prefilled);
-  }, [selectedDate, isLoading, isPreferencesLoading, measurements, weightMode, bodyUnit, heightMode]);
-
   // Reconcile the custom form with the latest server entries. A date change
   // resets the dirty set so the previous day's input is never carried over.
   // Only eligible Daily categories participate; synced (non-manual) entries are
@@ -354,7 +375,13 @@ const MeasurementsTab: React.FC<MeasurementsTabProps> = ({
   }, [selectedDate, dailyCustomCategories, customMeasurements]);
 
   const updateField = useCallback((key: keyof FormState, value: string) => {
-    dirtyFieldsRef.current.add(FORM_FIELD_KEYS[key]);
+    setDirtyFields((prev) => {
+      const fieldKey = FORM_FIELD_KEYS[key];
+      if (prev.has(fieldKey)) return prev;
+      const next = new Set(prev);
+      next.add(fieldKey);
+      return next;
+    });
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 

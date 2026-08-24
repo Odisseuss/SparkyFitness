@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { BUILT_IN_MOODS, moodValueToTag, type MoodDef } from '@workspace/shared';
@@ -40,7 +40,12 @@ const FastingMoodTab: React.FC<FastingMoodTabProps> = ({ selectedDate, navigatio
   // switch, or the query settling after a save). A dirty-tracking guard is
   // unnecessary here: unlike Measurements, this form has no server-refetch
   // race to protect against — it only ever loads once per date on mount.
-  useEffect(() => {
+  // Adjusted directly during render (React's "adjusting state when a prop
+  // changes" pattern) rather than in an effect, so the re-seed lands in the
+  // same commit as the data change instead of a follow-up render.
+  const [prevExistingMood, setPrevExistingMood] = useState(existingMood);
+  if (existingMood !== prevExistingMood) {
+    setPrevExistingMood(existingMood);
     if (existingMood) {
       setMood(existingMood.mood_value);
       setMoodTags(existingMood.mood_tags);
@@ -50,7 +55,7 @@ const FastingMoodTab: React.FC<FastingMoodTabProps> = ({ selectedDate, navigatio
       setMoodTags([]);
       setNotes('');
     }
-  }, [existingMood]);
+  }
 
   const moodStepperProps = useStepperDraft({
     value: mood,
