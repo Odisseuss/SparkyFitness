@@ -40,8 +40,9 @@ export interface TimeSheetRef {
 interface TimeSheetProps {
   value: string; // '' or 'HH:MM'
   onSelectTime: (time: string) => void;
-  // Forwarded to the BottomSheetModal so callers rendering multiple TimeSheet
-  // instances (e.g. bedtime vs. wake time) can distinguish them in tests.
+  // Forwarded to the sheet's content view (BottomSheetModal itself has no
+  // testID prop) so callers rendering multiple TimeSheet instances (e.g.
+  // bedtime vs. wake time) can distinguish them in tests.
   testID?: string;
 }
 
