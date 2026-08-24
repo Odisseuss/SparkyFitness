@@ -151,3 +151,5 @@ export const medicationDetailQueryKey = (id: string) =>
   ['medications', 'detail', id] as const;
 export const medicationEntriesQueryKey = (opts?: { fromDate?: string; toDate?: string; medicationId?: string }) =>
   ['medications', 'entries', opts ?? {}] as const;
+
+export const moodQueryKey = (date: string) => ['mood', date] as const;
