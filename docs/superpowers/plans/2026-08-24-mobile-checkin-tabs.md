@@ -219,7 +219,7 @@ export const fetchMoodForDate = async (date: string): Promise<MoodEntry | null> 
       operation: 'fetch mood for date',
     });
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
+    if (error instanceof ApiError && error.statusCode === 404) {
       return null;
     }
     throw error;
@@ -237,7 +237,7 @@ export const saveMood = (payload: SaveMoodPayload): Promise<MoodEntry> =>
   });
 ```
 
-Before writing this, check `SparkyFitnessMobile/src/services/api/errors.ts` for the exact `ApiError` shape (`status` field name) — it is already used the same way by other API clients in this codebase (e.g. `dailySummaryApi.ts`'s 401 handling in `apiClient.ts` itself constructs `new ApiError(message, response.status, errorText)`), so `error.status` is correct, but confirm before relying on it.
+`ApiError`'s field is `statusCode`, not `status` (`error instanceof ApiError && error.statusCode === 404`, confirmed against `SparkyFitnessMobile/src/services/api/errors.ts`).
 
 - [ ] **Step 4: Run test to verify it passes**
 
