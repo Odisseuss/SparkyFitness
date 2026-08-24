@@ -62,7 +62,8 @@ import {
   SafeLogs,
   SafeSync,
   SafeImportHistory,
-  SafeMeasurementsAdd,
+  SafeCheckIn,
+  SafeProgressPhotosCompare,
   SafeChat,
   SafeCalorieSettings,
   SafeMealTypeSettings,
@@ -592,11 +593,16 @@ function AppContent() {
           />
           <Stack.Screen
             name="MeasurementsAdd"
-            component={SafeMeasurementsAdd}
-            options={createStackScreenOptions('Measurements', {
+            component={SafeCheckIn}
+            options={createStackScreenOptions('Check-In', {
               presentation: 'modal',
               ...(Platform.OS === 'android' ? androidModalAnimation : {}),
             })}
+          />
+          <Stack.Screen
+            name="ProgressPhotosCompare"
+            component={SafeProgressPhotosCompare}
+            options={createStackScreenOptions('Compare Photos', { headerBackTitle: 'Check-In' })}
           />
           <Stack.Screen
             name="CalorieSettings"

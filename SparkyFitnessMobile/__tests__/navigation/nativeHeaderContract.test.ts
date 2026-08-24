@@ -37,6 +37,7 @@ const NATIVE_TABS_ROUTE_EXCLUSIONS = {
   Logs: 'Root-stack settings route presented above the tab host.',
   Sync: 'Root-stack settings route presented above the tab host.',
   MeasurementsAdd: 'Root-stack measurement modal presented from the tab host.',
+  ProgressPhotosCompare: 'Root-stack detail route presented above the tab host.',
   CalorieSettings: 'Root-stack settings route presented above the tab host.',
   FoodSettings: 'Root-stack settings route presented above the tab host.',
   DashboardSettings: 'Root-stack settings route presented above the tab host.',

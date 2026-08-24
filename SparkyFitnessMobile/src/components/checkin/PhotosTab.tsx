@@ -118,13 +118,7 @@ const PhotosTab: React.FC<PhotosTabProps> = ({ selectedDate, navigation }) => {
     <View className="gap-4">
       <View className="flex-row items-center justify-between">
         <Text className="text-text-primary text-base font-semibold">Progress Photos</Text>
-        <TouchableOpacity
-          // `ProgressPhotosCompare` is registered in a later task (Task 12); the
-          // `as never` cast is the codebase's established pattern for a
-          // navigate target not yet present in `RootStackParamList` (see
-          // `TabsLayout.tsx`).
-          onPress={() => navigation.navigate('ProgressPhotosCompare' as never)}
-        >
+        <TouchableOpacity onPress={() => navigation.navigate('ProgressPhotosCompare')}>
           <Text className="text-accent-primary text-sm font-semibold">Compare</Text>
         </TouchableOpacity>
       </View>

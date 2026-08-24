@@ -118,11 +118,11 @@ describe('AddSheet', () => {
     expect(onDismissWithoutAction).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the Measurements tile in the main grid', () => {
+  it('renders the Check-In tile in the main grid', () => {
     const { ref, getByText } = renderAddSheet();
 
     act(() => ref.current?.present());
-    expect(getByText('Measurements')).toBeTruthy();
+    expect(getByText('Check-In')).toBeTruthy();
   });
 
   it('invokes onSyncHealthData when the secondary Sync Health Data row is pressed', () => {

@@ -218,6 +218,7 @@ export type RootStackParamList = {
   Sync: undefined;
   ImportHistory: undefined;
   MeasurementsAdd: { date?: string } | undefined;
+  ProgressPhotosCompare: undefined;
   CalorieSettings: undefined;
   MealTypeSettings: undefined;
   FoodSettings: undefined;
