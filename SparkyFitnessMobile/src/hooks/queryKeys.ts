@@ -153,3 +153,7 @@ export const medicationEntriesQueryKey = (opts?: { fromDate?: string; toDate?: s
   ['medications', 'entries', opts ?? {}] as const;
 
 export const moodQueryKey = (date: string) => ['mood', date] as const;
+
+export const sleepEntriesQueryKeyRoot = ['sleepEntries'] as const;
+export const sleepEntriesQueryKey = (startDate: string, endDate: string) =>
+  [...sleepEntriesQueryKeyRoot, startDate, endDate] as const;
