@@ -157,3 +157,6 @@ export const moodQueryKey = (date: string) => ['mood', date] as const;
 export const sleepEntriesQueryKeyRoot = ['sleepEntries'] as const;
 export const sleepEntriesQueryKey = (startDate: string, endDate: string) =>
   [...sleepEntriesQueryKeyRoot, startDate, endDate] as const;
+
+export const checkInPhotoDatesQueryKey = ['checkInPhotoDates'] as const;
+export const checkInPhotosQueryKey = (date: string) => ['checkInPhotos', date] as const;
