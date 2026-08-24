@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useCSSVariable } from 'uniwind';
-import TimeSheet, { type TimeSheetRef } from '../TimeSheet';
+import TimeSheet, { type TimeSheetRef, dateToTimeString } from '../TimeSheet';
 import Button from '../ui/Button';
 import Icon from '../Icon';
 import { toBedtimeWakeTimeDates } from '../../utils/sleepCalculations';
@@ -20,9 +20,6 @@ interface SleepTabProps {
 
 const formatClockTime = (isoString: string) =>
   new Date(isoString).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-
-/** '2026-08-24T22:00:00.000Z' -> '22:00' for pre-filling the time pickers on edit. */
-const toHHMM = (isoString: string) => new Date(isoString).toISOString().slice(11, 16);
 
 const SleepTab: React.FC<SleepTabProps> = ({ selectedDate }) => {
   const [accentColor, dangerColor] = useCSSVariable([
@@ -54,8 +51,8 @@ const SleepTab: React.FC<SleepTabProps> = ({ selectedDate }) => {
 
   const handleEdit = (entry: SleepEntry) => {
     setEditingId(entry.id);
-    setBedtime(toHHMM(entry.bedtime));
-    setWakeTime(toHHMM(entry.wake_time));
+    setBedtime(dateToTimeString(new Date(entry.bedtime)));
+    setWakeTime(dateToTimeString(new Date(entry.wake_time)));
   };
 
   const handleSave = async () => {
@@ -107,20 +104,13 @@ const SleepTab: React.FC<SleepTabProps> = ({ selectedDate }) => {
         </Text>
 
         <View className="flex-row gap-3 mb-4">
-          {/* TimeSheet is a BottomSheetModal: it portals its actual sheet content
-              elsewhere via BottomSheetModalProvider, so nesting it here renders
-              nothing extra in place — it only lets the trigger's press area also
-              carry the picker's own testID (used by callers such as tests that
-              distinguish bedtime vs. wake-time pickers by that id). */}
           <TouchableOpacity className="flex-1" onPress={() => bedtimeSheetRef.current?.present()}>
             <Text className="text-text-secondary text-sm mb-1">Bedtime</Text>
             <Text className="text-text-primary text-base">{bedtime || 'Select time'}</Text>
-            <TimeSheet ref={bedtimeSheetRef} value={bedtime} onSelectTime={setBedtime} testID="bedtime-sheet" />
           </TouchableOpacity>
           <TouchableOpacity className="flex-1" onPress={() => wakeTimeSheetRef.current?.present()}>
             <Text className="text-text-secondary text-sm mb-1">Wake Time</Text>
             <Text className="text-text-primary text-base">{wakeTime || 'Select time'}</Text>
-            <TimeSheet ref={wakeTimeSheetRef} value={wakeTime} onSelectTime={setWakeTime} testID="waketime-sheet" />
           </TouchableOpacity>
         </View>
 
@@ -165,6 +155,9 @@ const SleepTab: React.FC<SleepTabProps> = ({ selectedDate }) => {
           </View>
         ))
       )}
+
+      <TimeSheet ref={bedtimeSheetRef} value={bedtime} onSelectTime={setBedtime} testID="bedtime-sheet" />
+      <TimeSheet ref={wakeTimeSheetRef} value={wakeTime} onSelectTime={setWakeTime} testID="waketime-sheet" />
     </View>
   );
 };
