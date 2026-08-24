@@ -56,6 +56,37 @@ describe('FastingMoodTab', () => {
     });
   });
 
+  test('deselecting a banded chip after manually adjusting the stepper does not re-jump the intensity', async () => {
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByText('Calm')).toBeTruthy();
+    });
+
+    // Selecting the "Calm" chip (band 65) should jump the stepper to 65.
+    fireEvent.press(screen.getByText('Calm'));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('65')).toBeTruthy();
+    });
+
+    // Simulate the user manually moving the stepper away from the band value,
+    // then blurring so the committed value (not an in-progress draft) drives
+    // what's displayed.
+    const input = screen.getByDisplayValue('65');
+    fireEvent.changeText(input, '70');
+    fireEvent(input, 'blur');
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('70')).toBeTruthy();
+    });
+
+    // Deselecting "Calm" must not snap the intensity back to its band value.
+    fireEvent.press(screen.getByText('Calm'));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('70')).toBeTruthy();
+    });
+    expect(screen.queryByDisplayValue('65')).toBeNull();
+  });
+
   test('pre-fills the slider and tags from an existing entry for the date', async () => {
     mockFetchMoodForDate.mockResolvedValue({ id: 'm1', mood_value: 80, mood_tags: ['happy'], notes: 'Great workout', entry_date: '2026-08-24' });
 

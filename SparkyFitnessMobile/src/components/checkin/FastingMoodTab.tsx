@@ -62,10 +62,14 @@ const FastingMoodTab: React.FC<FastingMoodTabProps> = ({ selectedDate, navigatio
 
   // Toggles the descriptive tag; for the nine banded moods it also jumps the
   // intensity stepper to that band's value, giving a one-tap way to set both
-  // the overall rating and a matching tag without the removed slider.
+  // the overall rating and a matching tag without the removed slider. The
+  // jump only happens on selection (not-selected -> selected); deselecting
+  // an already-selected chip must not re-snap the intensity, since the user
+  // may have since moved the stepper to a different value manually.
   const toggleTag = (m: MoodDef) => {
-    setMoodTags((prev) => (prev.includes(m.name) ? prev.filter((t) => t !== m.name) : [...prev, m.name]));
-    if (m.band != null) setMood(m.band);
+    const wasSelected = moodTags.includes(m.name);
+    setMoodTags((prev) => (wasSelected ? prev.filter((t) => t !== m.name) : [...prev, m.name]));
+    if (!wasSelected && m.band != null) setMood(m.band);
   };
 
   const handleSave = async () => {
