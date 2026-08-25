@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View, TouchableOpacity, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useCSSVariable } from 'uniwind';
 import Icon from '../components/Icon';
 import SegmentedControl, { type Segment } from '../components/SegmentedControl';
@@ -71,7 +72,7 @@ const CheckInScreen: React.FC<Props> = ({ navigation, route }) => {
   });
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-background" style={usesNativeHeader ? undefined : { paddingTop: insets.top }}>
       {header}
 
       <TouchableOpacity
@@ -88,8 +89,12 @@ const CheckInScreen: React.FC<Props> = ({ navigation, route }) => {
         <SegmentedControl segments={SEGMENTS} activeKey={activeTab} onSelect={setActiveTab} />
       </View>
 
-      <View className="flex-1 px-4">
-        {activeTab === 'measurements' && (
+      <View className="flex-1">
+        {activeTab === 'measurements' ? (
+          // MeasurementsTab owns its own KeyboardAwareScrollView (it needs
+          // fine control over keyboard-avoidance for its many stacked
+          // inputs), so it is intentionally NOT nested inside the shared
+          // scroll wrapper below — that would double-scroll.
           <MeasurementsTab
             selectedDate={selectedDate}
             registerSaveHandler={(fn) => {
@@ -97,10 +102,18 @@ const CheckInScreen: React.FC<Props> = ({ navigation, route }) => {
             }}
             onStateChange={setMeasurementsState}
           />
+        ) : (
+          <KeyboardAwareScrollView
+            contentContainerClassName="px-4 py-4"
+            bottomOffset={80}
+            keyboardShouldPersistTaps="handled"
+          >
+            {activeTab === 'fastingMood' && <FastingMoodTab selectedDate={selectedDate} navigation={navigation} />}
+            {activeTab === 'sleep' && <SleepTab selectedDate={selectedDate} />}
+            {activeTab === 'photos' && <PhotosTab selectedDate={selectedDate} navigation={navigation} />}
+            <View style={{ height: 80 }} />
+          </KeyboardAwareScrollView>
         )}
-        {activeTab === 'fastingMood' && <FastingMoodTab selectedDate={selectedDate} navigation={navigation} />}
-        {activeTab === 'sleep' && <SleepTab selectedDate={selectedDate} />}
-        {activeTab === 'photos' && <PhotosTab selectedDate={selectedDate} navigation={navigation} />}
       </View>
 
       {!usesNativeHeader && isMeasurementsTab && (

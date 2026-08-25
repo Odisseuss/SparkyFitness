@@ -5,11 +5,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Toast from 'react-native-toast-message';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import Icon from '../Icon';
 import Button from '../ui/Button';
@@ -145,8 +143,6 @@ const MeasurementsTab: React.FC<MeasurementsTabProps> = ({
   registerSaveHandler,
   onStateChange,
 }) => {
-  const insets = useSafeAreaInsets();
-
   const [accentPrimary, textSecondary] = useCSSVariable([
     '--color-accent-primary',
     '--color-text-secondary',
@@ -800,10 +796,7 @@ const MeasurementsTab: React.FC<MeasurementsTabProps> = ({
   };
 
   return (
-    <View
-      className="flex-1 bg-background"
-      style={Platform.OS === 'android' ? { paddingTop: insets.top } : undefined}
-    >
+    <View className="flex-1 bg-background">
       <KeyboardAwareScrollView
         contentContainerClassName="px-4 py-4"
         bottomOffset={80}
