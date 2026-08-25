@@ -31,6 +31,9 @@ const SegmentedControl = <T extends string>({
             className={`text-sm font-medium ${
               activeKey === segment.key ? 'text-text-primary' : 'text-text-muted'
             }`}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
           >
             {segment.label}
           </Text>

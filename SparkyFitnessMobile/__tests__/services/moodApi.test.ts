@@ -34,16 +34,22 @@ describe('moodApi', () => {
       );
     });
 
-    test('returns null on a 404 (no entry for that date)', async () => {
+    test('returns null when the server responds 200 with an empty object (no entry for that date)', async () => {
+      // GET /mood/date/:entryDate returns HTTP 200 {} — not a 404 — when the
+      // user has no mood entry for the date (moodRoutes.ts). Treating any
+      // truthy response as a real entry silently produced { mood_value:
+      // undefined, mood_tags: undefined, ... }, which is what showed up as
+      // "undefined" in the mobile mood-intensity stepper and threw when
+      // toggling a mood tag (moodTags.includes on undefined).
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
-      mockFetch.mockResolvedValue({ ok: false, status: 404, text: () => Promise.resolve('Not found') });
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
 
       const result = await fetchMoodForDate('2026-08-24');
 
       expect(result).toBeNull();
     });
 
-    test('rethrows a non-404 server error', async () => {
+    test('rethrows a non-OK server error', async () => {
       mockGetActiveServerConfig.mockResolvedValue(testConfig);
       mockFetch.mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve('Internal Server Error') });
 

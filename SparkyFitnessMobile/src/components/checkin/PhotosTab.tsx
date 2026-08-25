@@ -84,19 +84,36 @@ const PhotosTab: React.FC<PhotosTabProps> = ({ selectedDate, navigation }) => {
     const type = pendingType.current;
     if (!type) return;
 
-    const result =
-      source === 'camera'
-        ? await pickImageFromCamera()
-        : { status: 'ok' as const, image: (await pickImagesFromLibrary(1))[0] };
-    if (result.status === 'denied') {
-      Toast.show({ type: 'error', text1: 'Permission required' });
+    let imageUri: string | undefined;
+    try {
+      if (source === 'camera') {
+        const result = await pickImageFromCamera();
+        if (result.status === 'denied') {
+          Toast.show({ type: 'error', text1: 'Permission required' });
+          return;
+        }
+        if (result.status === 'cancelled') return;
+        imageUri = result.image.uri;
+      } else {
+        const [image] = await pickImagesFromLibrary(1);
+        if (!image) return;
+        imageUri = image.uri;
+      }
+    } catch {
+      // Covers a rejection from the picker call itself (e.g. a native
+      // camera/HDR-image-processing failure) — pickImageFromCamera only
+      // catches failures in its own downscale step, so a failure earlier in
+      // the native picker call (permission prompt, capture, HEIC/HDR
+      // conversion) would otherwise surface as an unhandled promise
+      // rejection instead of a user-facing error.
+      Toast.show({ type: 'error', text1: 'Could not use photo' });
       return;
     }
-    if (result.status === 'cancelled' || !('image' in result) || !result.image) return;
+    if (!imageUri) return;
 
     setUploadingType(type);
     try {
-      await uploadMutation.mutateAsync({ date: selectedDate, type, uri: result.image.uri });
+      await uploadMutation.mutateAsync({ date: selectedDate, type, uri: imageUri });
     } catch {
       Toast.show({ type: 'error', text1: 'Could not upload photo' });
     } finally {

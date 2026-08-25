@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import Toast from 'react-native-toast-message';
 import PhotosTab from '../../../src/components/checkin/PhotosTab';
 import { fetchPhotosForDate, uploadPhoto, buildPhotoImageSource } from '../../../src/services/api/checkInPhotosApi';
 import { pickImageFromCamera } from '../../../src/utils/pickImage';
@@ -54,6 +55,28 @@ describe('PhotosTab', () => {
     await waitFor(() => {
       expect(mockUploadPhoto).toHaveBeenCalledWith('2026-08-24', 'front', 'file:///tmp/front.jpg');
     });
+  });
+
+  test('a rejected picker call (e.g. a native camera/HDR-processing failure) shows an error toast instead of crashing', async () => {
+    // pickImageFromCamera's own try/catch only covers the downscale step; a
+    // failure inside ImagePicker.requestCameraPermissionsAsync/
+    // launchCameraAsync itself (as observed with certain HDR captures)
+    // rejects the whole call. handlePick previously had no try/catch around
+    // this await at all, so the rejection went uncaught.
+    mockPickImageFromCamera.mockRejectedValue(new Error('Native camera failure'));
+
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByText('Front')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByTestId('photo-slot-front'));
+    fireEvent.press(await screen.findByText('Take Photo'));
+
+    await waitFor(() => {
+      expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', text1: 'Could not use photo' }));
+    });
+    expect(mockUploadPhoto).not.toHaveBeenCalled();
   });
 
   test('renders a Compare button that navigates to the comparison screen', async () => {
