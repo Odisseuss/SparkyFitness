@@ -138,7 +138,7 @@ describe('CheckInScreen', () => {
       expect(screen.getByText('Weight (kg)')).toBeTruthy();
     });
     expect(screen.getByText('Measurements')).toBeTruthy();
-    expect(screen.getByText('Fasting & Mood')).toBeTruthy();
+    expect(screen.getByText('Mood')).toBeTruthy();
     expect(screen.getByText('Sleep')).toBeTruthy();
     expect(screen.getByText('Photos')).toBeTruthy();
   });

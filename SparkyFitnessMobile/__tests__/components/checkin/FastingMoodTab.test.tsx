@@ -61,35 +61,50 @@ describe('FastingMoodTab', () => {
     });
   });
 
-  test('deselecting a banded chip after manually adjusting the stepper does not re-jump the intensity', async () => {
+  test('selecting a mood tag chip does not change the overall mood value', async () => {
     renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('Calm')).toBeTruthy();
     });
 
-    // Selecting the "Calm" chip (band 65) should jump the stepper to 65.
+    const slider = screen.getByLabelText('Overall mood');
+    expect(slider.props.accessibilityValue.now).toBe(50);
+
+    // Selecting the "Calm" chip (a banded mood) must only toggle the tag --
+    // it must never move the intensity slider.
     fireEvent.press(screen.getByText('Calm'));
+    expect(slider.props.accessibilityValue.now).toBe(50);
+
+    fireEvent.press(screen.getByText('Save Mood'));
     await waitFor(() => {
-      expect(screen.getByDisplayValue('65')).toBeTruthy();
+      expect(mockSaveMood).toHaveBeenCalledWith(
+        expect.objectContaining({ mood_value: 50, mood_tags: ['calm'], entry_date: '2026-08-24' }),
+      );
+    });
+  });
+
+  test('tapping a band emoji in the quick-jump row sets the intensity directly', async () => {
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Calm')).toBeTruthy();
     });
 
-    // Simulate the user manually moving the stepper away from the band value,
-    // then blurring so the committed value (not an in-progress draft) drives
-    // what's displayed.
-    const input = screen.getByDisplayValue('65');
-    fireEvent.changeText(input, '70');
-    fireEvent(input, 'blur');
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('70')).toBeTruthy();
-    });
+    const slider = screen.getByLabelText('Overall mood');
+    expect(slider.props.accessibilityValue.now).toBe(50);
 
-    // Deselecting "Calm" must not snap the intensity back to its band value.
-    fireEvent.press(screen.getByText('Calm'));
+    // "Calm" is a banded mood (band 65); tapping its quick-jump emoji sets
+    // the slider directly and must not touch the mood-tag chips.
+    fireEvent.press(screen.getByLabelText('Calm'));
+    expect(slider.props.accessibilityValue.now).toBe(65);
+
+    fireEvent.press(screen.getByText('Save Mood'));
     await waitFor(() => {
-      expect(screen.getByDisplayValue('70')).toBeTruthy();
+      expect(mockSaveMood).toHaveBeenCalledWith(
+        expect.objectContaining({ mood_value: 65, mood_tags: [], entry_date: '2026-08-24' }),
+      );
     });
-    expect(screen.queryByDisplayValue('65')).toBeNull();
   });
 
   test('pre-fills the slider and tags from an existing entry for the date', async () => {
@@ -100,6 +115,7 @@ describe('FastingMoodTab', () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue('Great workout')).toBeTruthy();
     });
+    expect(screen.getByLabelText('Overall mood').props.accessibilityValue.now).toBe(80);
   });
 
   test('shows the cached entry immediately when the mood query is already cached on mount, instead of the hardcoded defaults', async () => {
@@ -122,7 +138,6 @@ describe('FastingMoodTab', () => {
     // spinner should ever appear, and the hardcoded defaults (mood 50, no
     // tags, empty notes) must never be shown even transiently.
     expect(screen.getByDisplayValue('Great workout')).toBeTruthy();
-    expect(screen.getByDisplayValue('80')).toBeTruthy();
-    expect(screen.queryByDisplayValue('50')).toBeNull();
+    expect(screen.getByLabelText('Overall mood').props.accessibilityValue.now).toBe(80);
   });
 });
