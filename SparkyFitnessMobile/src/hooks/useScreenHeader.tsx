@@ -427,6 +427,9 @@ function HeaderBarButton({
     );
   }
 
+  const isIconItem =
+    item.kind === 'back' || item.kind === 'dismiss' || item.kind === 'icon' || item.kind === 'menu';
+
   return (
     <Pressable
       onPress={onPress}
@@ -434,6 +437,7 @@ function HeaderBarButton({
       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       accessibilityRole="button"
       accessibilityLabel={itemAccessibilityLabel(item, t)}
+      className={isIconItem ? 'py-3.5 px-4' : undefined}
       style={disabled ? { opacity: 0.4 } : undefined}
     >
       {content}

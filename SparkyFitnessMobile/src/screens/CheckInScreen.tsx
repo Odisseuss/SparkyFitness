@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { View, TouchableOpacity, Text } from 'react-native';
+import { View, TouchableOpacity, Text, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useCSSVariable } from 'uniwind';
 import Icon from '../components/Icon';
@@ -16,6 +16,7 @@ import { formatDateLabel } from '../utils/dateUtils';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useScreenHeader } from '../hooks/useScreenHeader';
 import { useDiaryDateStore } from '../stores/diaryDateStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = RootStackScreenProps<'MeasurementsAdd'>;
 
@@ -39,6 +40,7 @@ const CheckInScreen: React.FC<Props> = ({ navigation, route }) => {
     route.params?.date ?? useDiaryDateStore.getState().selectedDate;
   const [selectedDate, setSelectedDate] = useState<string>(initialDate);
   const [activeTab, setActiveTab] = useState<CheckInTab>('measurements');
+  const insets = useSafeAreaInsets();
 
   // Only the Measurements tab routes through the shared header/footer Save —
   // Mood, Sleep, and Photos each own their own inline save/upload action
@@ -68,7 +70,10 @@ const CheckInScreen: React.FC<Props> = ({ navigation, route }) => {
   });
 
   return (
-    <View className="flex-1 bg-background">
+    <View
+      className="flex-1 bg-background"
+      style={Platform.OS === 'android' ? { paddingTop: insets.top } : undefined}
+    >
       {header}
 
       <TouchableOpacity
